@@ -2,8 +2,10 @@
 #
 # ubuntu-privacy.sh — wylaczenie telemetrii i "phone home" w Ubuntu (24.04 / 25.10 / 26.04)
 #
-#   curl -fsSL <URL>/ubuntu-privacy.sh | sudo bash -s -- --dry-run
-#   curl -fsSL <URL>/ubuntu-privacy.sh | sudo bash -s -- --yes
+#   https://github.com/roorq/ubuntu-privacy
+#
+#   curl -fsSL https://raw.githubusercontent.com/roorq/ubuntu-privacy/main/ubuntu-privacy.sh | sudo bash -s -- --dry-run
+#   curl -fsSL https://raw.githubusercontent.com/roorq/ubuntu-privacy/main/ubuntu-privacy.sh | sudo bash -s -- --yes
 #
 # Kazdy modyfikowany plik jest kopiowany do /var/backups/ubuntu-privacy-<data>/,
 # gdzie powstaje takze restore.sh cofajacy wszystkie zmiany.
@@ -11,6 +13,8 @@
 set -euo pipefail
 
 VERSION="1.0.0"
+REPO_URL="https://github.com/roorq/ubuntu-privacy"
+RAW_URL="https://raw.githubusercontent.com/roorq/ubuntu-privacy/main/ubuntu-privacy.sh"
 DRY_RUN=0
 ASSUME_YES=0
 DO_PURGE=0
@@ -45,9 +49,10 @@ hdr()  { printf '\n%s\n' "${C_B}=== $* ===${C_0}"; log "=== $* ==="; }
 usage() {
     cat <<EOF
 ubuntu-privacy.sh v${VERSION}
+https://github.com/roorq/ubuntu-privacy
 
 Uzycie:  sudo ./ubuntu-privacy.sh [opcje]
-   albo: curl -fsSL <URL> | sudo bash -s -- [opcje]
+   albo: curl -fsSL ${RAW_URL} | sudo bash -s -- [opcje]
 
 Opcje:
   -y, --yes           bez pytania o potwierdzenie (wymagane przy curl|bash)
@@ -88,7 +93,7 @@ done
 
 # ---------------------------------------------------------------- sanity
 if [ "$(id -u)" -ne 0 ]; then
-    err "Uruchom jako root:  curl -fsSL <URL> | sudo bash -s -- --yes"
+    err "Uruchom jako root:  curl -fsSL ${RAW_URL} | sudo bash -s -- --yes"
     exit 1
 fi
 
@@ -569,4 +574,5 @@ else
     printf '\n'
     warn "Zrestartuj system, zeby wszystkie zmiany weszly w zycie."
 fi
+info "Problemy / uwagi: ${REPO_URL}/issues"
 printf '\n'

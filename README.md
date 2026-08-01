@@ -11,13 +11,13 @@ Każda zmiana jest kopiowana do katalogu backupu, a skrypt generuje `restore.sh`
 
 ```bash
 # 1. Podgląd — pokazuje co zrobi, nie zmienia niczego
-curl -fsSL https://raw.githubusercontent.com/USER/REPO/main/ubuntu-privacy.sh | sudo bash -s -- --dry-run
+curl -fsSL https://raw.githubusercontent.com/roorq/ubuntu-privacy/main/ubuntu-privacy.sh | sudo bash -s -- --dry-run
 
 # 2. Właściwe uruchomienie
-curl -fsSL https://raw.githubusercontent.com/USER/REPO/main/ubuntu-privacy.sh | sudo bash -s -- --yes
+curl -fsSL https://raw.githubusercontent.com/roorq/ubuntu-privacy/main/ubuntu-privacy.sh | sudo bash -s -- --yes
 
 # 3. Wariant maksymalny — usuwa pakiety i blokuje domeny w /etc/hosts
-curl -fsSL https://raw.githubusercontent.com/USER/REPO/main/ubuntu-privacy.sh | sudo bash -s -- --yes --purge --hosts
+curl -fsSL https://raw.githubusercontent.com/roorq/ubuntu-privacy/main/ubuntu-privacy.sh | sudo bash -s -- --yes --purge --hosts
 ```
 
 > `--yes` jest **wymagane** przy `curl | bash`. Bez terminala skrypt nie ma jak zapytać o potwierdzenie i celowo przerywa działanie.
@@ -29,11 +29,23 @@ Po wykonaniu: **zrestartuj system**.
 `curl | bash` to wykonanie cudzego kodu na roocie w ciemno. Jeśli wolisz najpierw zobaczyć, co uruchamiasz:
 
 ```bash
-wget https://raw.githubusercontent.com/USER/REPO/main/ubuntu-privacy.sh
+wget https://raw.githubusercontent.com/roorq/ubuntu-privacy/main/ubuntu-privacy.sh
 less ubuntu-privacy.sh          # przeczytaj
-sha256sum ubuntu-privacy.sh     # porównaj z sumą z sekcji Releases
+sha256sum ubuntu-privacy.sh     # porównaj z sumą poniżej
 sudo bash ubuntu-privacy.sh --dry-run
 sudo bash ubuntu-privacy.sh
+```
+
+Suma kontrolna wersji **1.0.0**:
+
+```
+29ed934926b052fc23d430086c0ad189e906f2fcbe737c9c2fa737ff40c0e187  ubuntu-privacy.sh
+```
+
+Jednolinijkowa weryfikacja:
+
+```bash
+echo "29ed934926b052fc23d430086c0ad189e906f2fcbe737c9c2fa737ff40c0e187  ubuntu-privacy.sh" | sha256sum -c -
 ```
 
 ---
