@@ -1,106 +1,106 @@
 # ubuntu-privacy.sh
 
-Skrypt wyłączający telemetrię, raportowanie awarii i „phone home" w Ubuntu.
-Testowany pod kątem **Ubuntu 24.04 / 25.10 / 26.04 LTS** (działa też na pochodnych Debiana — kroki, które nie mają zastosowania, są po prostu pomijane).
+A script that disables telemetry, crash reporting and "phone home" behaviour in Ubuntu.
+Tested against **Ubuntu 24.04 / 25.10 / 26.04 LTS** (it also works on Debian derivatives — steps that do not apply are simply skipped).
 
-Każda zmiana jest kopiowana do katalogu backupu, a skrypt generuje `restore.sh`, który cofa **wszystko**.
+Every change is copied into a backup directory, and the script generates a `restore.sh` that reverts **everything**.
 
 ---
 
-## Szybki start
+## Quick start
 
 ```bash
-# 1. Podgląd — pokazuje co zrobi, nie zmienia niczego
+# 1. Preview — shows what it would do, changes nothing
 curl -fsSL https://raw.githubusercontent.com/roorq/ubuntu-privacy/main/ubuntu-privacy.sh | sudo bash -s -- --dry-run
 
-# 2. Właściwe uruchomienie
+# 2. The real run
 curl -fsSL https://raw.githubusercontent.com/roorq/ubuntu-privacy/main/ubuntu-privacy.sh | sudo bash -s -- --yes
 
-# 3. Wariant maksymalny — usuwa pakiety i blokuje domeny w /etc/hosts
+# 3. Maximum variant — removes packages and blocks domains in /etc/hosts
 curl -fsSL https://raw.githubusercontent.com/roorq/ubuntu-privacy/main/ubuntu-privacy.sh | sudo bash -s -- --yes --purge --hosts
 ```
 
-> `--yes` jest **wymagane** przy `curl | bash`. Bez terminala skrypt nie ma jak zapytać o potwierdzenie i celowo przerywa działanie.
+> `--yes` is **required** with `curl | bash`. Without a terminal the script has no way to ask for confirmation, so it deliberately aborts.
 
-Po wykonaniu: **zrestartuj system**.
+Afterwards: **reboot the system**.
 
-### Bezpieczniejszy wariant (zalecany)
+### The safer variant (recommended)
 
-`curl | bash` to wykonanie cudzego kodu na roocie w ciemno. Jeśli wolisz najpierw zobaczyć, co uruchamiasz:
+`curl | bash` means running someone else's code as root, sight unseen. If you would rather see what you are about to run first:
 
 ```bash
 wget https://raw.githubusercontent.com/roorq/ubuntu-privacy/main/ubuntu-privacy.sh
-less ubuntu-privacy.sh          # przeczytaj
-sha256sum ubuntu-privacy.sh     # porównaj z sumą poniżej
+less ubuntu-privacy.sh          # read it
+sha256sum ubuntu-privacy.sh     # compare with the checksum below
 sudo bash ubuntu-privacy.sh --dry-run
 sudo bash ubuntu-privacy.sh
 ```
 
-Suma kontrolna wersji **1.0.0**:
+Checksum of version **1.0.0**:
 
 ```
-29ed934926b052fc23d430086c0ad189e906f2fcbe737c9c2fa737ff40c0e187  ubuntu-privacy.sh
+8f9b28b6d69c51e8b8320fb7842cfcc811aa7211d11ad0c91107dbbdfcaccbf6  ubuntu-privacy.sh
 ```
 
-Jednolinijkowa weryfikacja:
+One-line verification:
 
 ```bash
-echo "29ed934926b052fc23d430086c0ad189e906f2fcbe737c9c2fa737ff40c0e187  ubuntu-privacy.sh" | sha256sum -c -
+echo "8f9b28b6d69c51e8b8320fb7842cfcc811aa7211d11ad0c91107dbbdfcaccbf6  ubuntu-privacy.sh" | sha256sum -c -
 ```
 
 ---
 
-## Opcje
+## Options
 
-| Flaga | Działanie |
+| Flag | Effect |
 |---|---|
-| `-y`, `--yes` | Bez pytania o potwierdzenie (wymagane przy `curl \| bash`) |
-| `-n`, `--dry-run` | Wypisuje planowane operacje, nie zmienia niczego |
-| `--purge` | Dodatkowo **usuwa** pakiety zamiast tylko je wyłączać |
-| `--hosts` | Blokuje domeny telemetrii w `/etc/hosts` |
-| `--no-firefox` | Pomija ustawianie polityk prywatności Firefoksa |
-| `--keep-conncheck` | Zostawia sprawdzanie połączenia przez NetworkManagera |
-| `-h`, `--help` | Pomoc |
+| `-y`, `--yes` | Do not ask for confirmation (required with `curl \| bash`) |
+| `-n`, `--dry-run` | Print the planned operations, change nothing |
+| `--purge` | Additionally **remove** the packages instead of merely disabling them |
+| `--hosts` | Block telemetry domains in `/etc/hosts` |
+| `--no-firefox` | Skip writing the Firefox privacy policies |
+| `--keep-conncheck` | Leave NetworkManager's connectivity checking in place |
+| `-h`, `--help` | Help |
 
 ---
 
-## Co dokładnie jest wyłączane
+## What exactly gets disabled
 
-### Usługi systemd (wyłączone **i zamaskowane**, żeby aktualizacja pakietu ich nie przywróciła)
+### systemd units (disabled **and masked**, so a package update cannot bring them back)
 
 `whoopsie.service`, `whoopsie.path`, `apport.service`, `apport-autoreport.{service,timer,path}`,
 `kerneloops.service`, `motd-news.{service,timer}`, `apt-news.service`, `esm-cache.service`,
 `ubuntu-advantage.service`, `ua-timer.{timer,service}`, `ua-reboot-cmds.service`,
 `ubuntu-report.service`, `popularity-contest.{service,timer}`
 
-### Raportowanie awarii
+### Crash reporting
 
-| Element | Zmiana |
+| Item | Change |
 |---|---|
-| Apport | `enabled=0` w `/etc/default/apport`, wyczyszczony `/etc/apport/autoreport` |
-| Zrzuty jądra | `kernel.core_pattern=\|/bin/false` — zrzuty nie trafiają już do apporta |
-| Zaległe raporty | Czyszczenie `/var/crash` |
-| Whoopsie | `report_crashes=false` w `/etc/whoopsie` (wysyłka do `errors.ubuntu.com`) |
+| Apport | `enabled=0` in `/etc/default/apport`, `/etc/apport/autoreport` cleared |
+| Kernel core dumps | `kernel.core_pattern=\|/bin/false` — dumps no longer reach apport |
+| Pending reports | `/var/crash` is cleaned out |
+| Whoopsie | `report_crashes=false` in `/etc/whoopsie` (uploads to `errors.ubuntu.com`) |
 
-### Statystyki systemu
+### System statistics
 
-| Element | Zmiana |
+| Item | Change |
 |---|---|
-| popularity-contest | `PARTICIPATE="no"` w `/etc/popularity-contest.conf` |
-| ubuntu-report | Usunięcie `~/.cache/ubuntu-report` wszystkich użytkowników + wyłączenie usługi |
+| popularity-contest | `PARTICIPATE="no"` in `/etc/popularity-contest.conf` |
+| ubuntu-report | Removes `~/.cache/ubuntu-report` for every user + disables the unit |
 
-### Reklamy Ubuntu Pro / ESM i MOTD
+### Ubuntu Pro / ESM ads and MOTD
 
-| Element | Zmiana |
+| Item | Change |
 |---|---|
-| motd-news | `ENABLED=0`, `URLS=""` — koniec pobierania „wiadomości" z `motd.ubuntu.com` przy logowaniu |
-| Fragmenty MOTD | `chmod -x` na `50-motd-news`, `88-esm-announce`, `91-contract-ua-esm-status`, `10-help-text`, `91-release-upgrade` |
-| Hook APT | `/etc/apt/apt.conf.d/20apt-esm-hook.conf` wyzerowany (to on wstrzykuje reklamy ESM do każdego `apt upgrade`) |
-| Ubuntu Pro | `pro config set apt_news=false`, jeśli `pro` jest zainstalowane |
+| motd-news | `ENABLED=0`, `URLS=""` — no more fetching "news" from `motd.ubuntu.com` at login |
+| MOTD fragments | `chmod -x` on `50-motd-news`, `88-esm-announce`, `91-contract-ua-esm-status`, `10-help-text`, `91-release-upgrade` |
+| APT hook | `/etc/apt/apt.conf.d/20apt-esm-hook.conf` blanked out (this is what injects ESM ads into every `apt upgrade`) |
+| Ubuntu Pro | `pro config set apt_news=false`, if `pro` is installed |
 
 ### GNOME
 
-Ustawienia trafiają do systemowej bazy dconf (`/etc/dconf/db/local.d/00-ubuntu-privacy`, obejmuje przyszłych użytkowników) **oraz** przez `gsettings` do wszystkich aktualnie zalogowanych użytkowników:
+The settings go into the system dconf database (`/etc/dconf/db/local.d/00-ubuntu-privacy`, which covers future users) **and** are applied through `gsettings` to every currently logged-in user:
 
 - `org.gnome.desktop.privacy report-technical-problems=false`
 - `org.gnome.desktop.privacy send-software-usage-stats=false`
@@ -109,66 +109,66 @@ Ustawienia trafiają do systemowej bazy dconf (`/etc/dconf/db/local.d/00-ubuntu-
 - `org.gnome.desktop.privacy remove-old-temp-files=true`, `remove-old-trash-files=true`
 - `org.gnome.system.location enabled=false`
 
-### Sieć
+### Network
 
-| Element | Zmiana |
+| Item | Change |
 |---|---|
-| NetworkManager | `/etc/NetworkManager/conf.d/99-ubuntu-privacy.conf` — koniec cyklicznego odpytywania `connectivity-check.ubuntu.com` |
-| Firefox | `/etc/firefox/policies/policies.json` — `DisableTelemetry`, `DisableFirefoxStudies`, `DisablePocket`, `DisableDefaultBrowserAgent`, wyłączone `UserMessaging` i prefy `datareporting.*` / `toolkit.telemetry.*` |
-| `/etc/hosts` *(tylko `--hosts`)* | `metrics`, `popcon`, `daisy`, `errors`, `connectivity-check`, `motd` `.ubuntu.com`, `contracts.canonical.com`, `*.telemetry.mozilla.org` |
+| NetworkManager | `/etc/NetworkManager/conf.d/99-ubuntu-privacy.conf` — no more periodic polling of `connectivity-check.ubuntu.com` |
+| Firefox | `/etc/firefox/policies/policies.json` — `DisableTelemetry`, `DisableFirefoxStudies`, `DisablePocket`, `DisableDefaultBrowserAgent`, `UserMessaging` turned off, plus the `datareporting.*` / `toolkit.telemetry.*` prefs |
+| `/etc/hosts` *(only with `--hosts`)* | `metrics`, `popcon`, `daisy`, `errors`, `connectivity-check`, `motd` `.ubuntu.com`, `contracts.canonical.com`, `*.telemetry.mozilla.org` |
 
-Polityki Firefoksa są zapisywane **tylko wtedy, gdy plik jeszcze nie istnieje** — własna konfiguracja nigdy nie zostanie nadpisana.
+The Firefox policies are written **only if the file does not already exist** — your own configuration is never overwritten.
 
-### Pakiety (tylko z `--purge`)
+### Packages (only with `--purge`)
 
 `ubuntu-report`, `popularity-contest`, `apport`, `apport-symptoms`, `apport-gtk`,
 `whoopsie`, `whoopsie-preferences`, `kerneloops`
 
-Bez tej flagi pakiety zostają zainstalowane, tylko unieszkodliwione.
+Without that flag the packages stay installed, just neutralised.
 
 ---
 
-## Efekty uboczne — przeczytaj przed uruchomieniem
+## Side effects — read before running
 
-- **`--purge` może usunąć metapakiet `ubuntu-desktop`.** Pulpit działa dalej, ale przyszłe aktualizacje wydania mogą zachowywać się inaczej. Dlatego usuwanie pakietów jest opcjonalne, a nie domyślne.
-- **Wyłączenie connectivity-check psuje wykrywanie captive portali** (hotele, lotniska, pociągi). Jeśli często korzystasz z takich sieci — dodaj `--keep-conncheck`.
-- **`--hosts` blokuje `contracts.canonical.com`.** Nie używaj tej flagi, jeśli masz aktywną subskrypcję Ubuntu Pro / ESM — przestanie działać.
-- **Wyłączony apport = brak lokalnych zrzutów awarii.** Jeśli będziesz zgłaszać błędy w Ubuntu, najpierw cofnij zmiany.
+- **`--purge` may remove the `ubuntu-desktop` metapackage.** The desktop keeps working, but future release upgrades may behave differently. That is why removing packages is optional rather than the default.
+- **Disabling connectivity-check breaks captive portal detection** (hotels, airports, trains). If you use such networks often, add `--keep-conncheck`.
+- **`--hosts` blocks `contracts.canonical.com`.** Do not use that flag if you have an active Ubuntu Pro / ESM subscription — it will stop working.
+- **Apport disabled = no local crash dumps.** If you plan to file bugs against Ubuntu, revert the changes first.
 
 ---
 
-## Cofanie zmian
+## Reverting the changes
 
-Skrypt zapisuje wszystko do `/var/backups/ubuntu-privacy-<data-godzina>/`:
+The script saves everything under `/var/backups/ubuntu-privacy-<date-time>/`:
 
 ```
-files/            kopie 1:1 zmodyfikowanych plików (z pełnymi ścieżkami)
-manifest.files    lista zmodyfikowanych plików
-manifest.created  lista plików utworzonych przez skrypt
-manifest.units    lista wyłączonych jednostek systemd
-manifest.pkgs     lista usuniętych pakietów
-restore.sh        skrypt przywracający
+files/            1:1 copies of the modified files (with full paths)
+manifest.files    list of modified files
+manifest.created  list of files created by the script
+manifest.units    list of disabled systemd units
+manifest.pkgs     list of removed packages
+restore.sh        the restore script
 ```
 
-Pełne cofnięcie:
+Full rollback:
 
 ```bash
 sudo /var/backups/ubuntu-privacy-*/restore.sh
 ```
 
-`restore.sh` przywraca oryginalne pliki, usuwa te utworzone przez skrypt, odmaskowuje i włącza usługi, reinstaluje usunięte pakiety i sprząta wpisy z `/etc/hosts`. Po tym zrestartuj system.
+`restore.sh` puts the original files back, deletes the ones the script created, unmasks and re-enables the units, reinstalls the removed packages and cleans up the `/etc/hosts` entries. Reboot afterwards.
 
-Log przebiegu: `/var/log/ubuntu-privacy.log`.
+Run log: `/var/log/ubuntu-privacy.log`.
 
 ---
 
-## Weryfikacja po uruchomieniu
+## Verifying after a run
 
 ```bash
-# usługi powinny być "masked"
+# the units should report "masked"
 systemctl is-enabled whoopsie apport kerneloops motd-news.timer apt-news 2>&1
 
-# ustawienia GNOME (jako zwykły użytkownik, nie root)
+# GNOME settings (as a regular user, not root)
 gsettings get org.gnome.desktop.privacy report-technical-problems
 gsettings get org.gnome.desktop.privacy send-software-usage-stats
 gsettings get org.gnome.system.location enabled
@@ -176,18 +176,18 @@ gsettings get org.gnome.system.location enabled
 # apport
 grep enabled /etc/default/apport
 
-# podgląd ruchu wychodzącego do Canonical (opcjonalnie)
+# a look at outbound traffic to Canonical (optional)
 sudo ss -tunp | grep -Ei 'ubuntu|canonical'
 ```
 
 ---
 
-## Uwagi
+## Notes
 
-- Skrypt jest **idempotentny** — można go uruchomić wielokrotnie. Każde uruchomienie tworzy nowy katalog backupu, więc do pełnego cofnięcia użyj tego **najstarszego**.
-- Uruchomienie po większej aktualizacji systemu ma sens — Ubuntu potrafi przywrócić część usług przy aktualizacji pakietów (maskowanie temu zapobiega, ale nowe jednostki mogą dojść).
-- Skrypt **nie** rusza aktualizacji bezpieczeństwa, `unattended-upgrades` ani niczego, co odpowiada za łatanie systemu. To celowe.
+- The script is **idempotent** — you can run it repeatedly. Each run creates a new backup directory, so for a full rollback use the **oldest** one.
+- Running it again after a major system upgrade makes sense — Ubuntu can bring some units back when packages are updated (masking prevents that, but new units may appear).
+- The script does **not** touch security updates, `unattended-upgrades`, or anything responsible for patching the system. That is deliberate.
 
-## Licencja
+## License
 
 MIT
