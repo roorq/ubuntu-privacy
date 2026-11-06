@@ -3,7 +3,7 @@
 A script that disables telemetry, crash reporting and "phone home" behaviour in Ubuntu.
 Tested against **Ubuntu 24.04 / 25.10 / 26.04 LTS** (it also works on Debian derivatives — steps that do not apply are simply skipped).
 
-Every change is copied into a backup directory, and the script generates a `restore.sh` that reverts **everything**.
+Every change is copied into a backup directory, and the script generates a `restore.sh` that reverts the changes (see [Reverting the changes](#reverting-the-changes) for the few things that cannot be undone).
 
 ---
 
@@ -13,11 +13,8 @@ Every change is copied into a backup directory, and the script generates a `rest
 # 1. Preview — shows what it would do, changes nothing
 curl -fsSL https://raw.githubusercontent.com/roorq/ubuntu-privacy/main/ubuntu-privacy.sh | sudo bash -s -- --dry-run
 
-# 2. The real run
+# 2. The real run — disables the telemetry and removes the telemetry packages
 curl -fsSL https://raw.githubusercontent.com/roorq/ubuntu-privacy/main/ubuntu-privacy.sh | sudo bash -s -- --yes
-
-# 3. Maximum variant — removes packages and blocks domains in /etc/hosts
-curl -fsSL https://raw.githubusercontent.com/roorq/ubuntu-privacy/main/ubuntu-privacy.sh | sudo bash -s -- --yes --purge --hosts
 ```
 
 > `--yes` is **required** with `curl | bash`. Without a terminal the script has no way to ask for confirmation, so it deliberately aborts.
@@ -31,21 +28,8 @@ Afterwards: **reboot the system**.
 ```bash
 wget https://raw.githubusercontent.com/roorq/ubuntu-privacy/main/ubuntu-privacy.sh
 less ubuntu-privacy.sh          # read it
-sha256sum ubuntu-privacy.sh     # compare with the checksum below
 sudo bash ubuntu-privacy.sh --dry-run
 sudo bash ubuntu-privacy.sh
-```
-
-Checksum of version **1.0.0**:
-
-```
-8f9b28b6d69c51e8b8320fb7842cfcc811aa7211d11ad0c91107dbbdfcaccbf6  ubuntu-privacy.sh
-```
-
-One-line verification:
-
-```bash
-echo "8f9b28b6d69c51e8b8320fb7842cfcc811aa7211d11ad0c91107dbbdfcaccbf6  ubuntu-privacy.sh" | sha256sum -c -
 ```
 
 ---
@@ -56,8 +40,7 @@ echo "8f9b28b6d69c51e8b8320fb7842cfcc811aa7211d11ad0c91107dbbdfcaccbf6  ubuntu-p
 |---|---|
 | `-y`, `--yes` | Do not ask for confirmation (required with `curl \| bash`) |
 | `-n`, `--dry-run` | Print the planned operations, change nothing |
-| `--purge` | Additionally **remove** the packages instead of merely disabling them |
-| `--hosts` | Block telemetry domains in `/etc/hosts` |
+| `--keep-packages` | Do not remove the telemetry packages, only disable them |
 | `--no-firefox` | Skip writing the Firefox privacy policies |
 | `--keep-conncheck` | Leave NetworkManager's connectivity checking in place |
 | `-h`, `--help` | Help |
@@ -73,12 +56,20 @@ echo "8f9b28b6d69c51e8b8320fb7842cfcc811aa7211d11ad0c91107dbbdfcaccbf6  ubuntu-p
 `ubuntu-advantage.service`, `ua-timer.{timer,service}`, `ua-reboot-cmds.service`,
 `ubuntu-report.service`, `popularity-contest.{service,timer}`
 
+The previous state of every unit is recorded, and `restore.sh` re-enables only the units that were enabled before (e.g. `apport-autoreport.*`, which Ubuntu ships disabled, stays disabled).
+
+**Ubuntu Pro:** if the machine is attached to Pro (`pro status`), `ubuntu-advantage`, `ua-timer`, `ua-reboot-cmds` and `esm-cache` are left alone.
+
+### Package config files
+
+Files that belong to a package (`/etc/default/apport`, `/etc/default/motd-news`, `/etc/whoopsie`, `20apt-esm-hook.conf`, ...) are not edited in place. The script moves the package's version aside with `dpkg-divert` (to `<file>.dpkg-divert`) and writes its own. Package updates then go to the diverted file, so they never stop on a conffile prompt, and `unattended-upgrades` keeps installing them.
+
 ### Crash reporting
 
 | Item | Change |
 |---|---|
-| Apport | `enabled=0` in `/etc/default/apport`, `/etc/apport/autoreport` cleared |
-| Kernel core dumps | `kernel.core_pattern=\|/bin/false` — dumps no longer reach apport |
+| Apport | `enabled=0` in `/etc/default/apport`; `/etc/apport/autoreport` **removed** (its mere existence turns automatic uploading on) |
+| Kernel core dumps | `kernel.core_pattern` handed back to the system default (systemd-coredump if installed, otherwise the kernel's `core`), so dumps no longer reach apport but still work for debugging |
 | Pending reports | `/var/crash` is cleaned out |
 | Whoopsie | `report_crashes=false` in `/etc/whoopsie` (uploads to `errors.ubuntu.com`) |
 
@@ -106,7 +97,6 @@ The settings go into the system dconf database (`/etc/dconf/db/local.d/00-ubuntu
 - `org.gnome.desktop.privacy send-software-usage-stats=false`
 - `org.gnome.desktop.privacy remember-recent-files=false`
 - `org.gnome.desktop.privacy remember-app-usage=false`
-- `org.gnome.desktop.privacy remove-old-temp-files=true`, `remove-old-trash-files=true`
 - `org.gnome.system.location enabled=false`
 
 ### Network
@@ -114,26 +104,24 @@ The settings go into the system dconf database (`/etc/dconf/db/local.d/00-ubuntu
 | Item | Change |
 |---|---|
 | NetworkManager | `/etc/NetworkManager/conf.d/99-ubuntu-privacy.conf` — no more periodic polling of `connectivity-check.ubuntu.com` |
-| Firefox | `/etc/firefox/policies/policies.json` — `DisableTelemetry`, `DisableFirefoxStudies`, `DisablePocket`, `DisableDefaultBrowserAgent`, `UserMessaging` turned off, plus the `datareporting.*` / `toolkit.telemetry.*` prefs |
-| `/etc/hosts` *(only with `--hosts`)* | `metrics`, `popcon`, `daisy`, `errors`, `connectivity-check`, `motd` `.ubuntu.com`, `contracts.canonical.com`, `*.telemetry.mozilla.org` |
+| Firefox | `/etc/firefox/policies/policies.json` — `DisableTelemetry`, `DisableFirefoxStudies`, `DisablePocket`, `DisableDefaultBrowserAgent`, `UserMessaging` turned off, plus the new-tab activity-stream telemetry prefs (locked) |
 
 The Firefox policies are written **only if the file does not already exist** — your own configuration is never overwritten.
 
-### Packages (only with `--purge`)
+### Telemetry packages (removed)
 
 `ubuntu-report`, `popularity-contest`, `apport`, `apport-symptoms`, `apport-gtk`,
 `whoopsie`, `whoopsie-preferences`, `kerneloops`
 
-Without that flag the packages stay installed, just neutralised.
+Before removing anything the script simulates the removal of each package (`apt-get -s purge`). A package whose removal would take **any other package** with it — typically the `ubuntu-desktop` metapackage — is kept installed (but disabled, see above); the rest are removed. `apt-get autoremove` is never run. With `--keep-packages` nothing is removed.
 
 ---
 
 ## Side effects — read before running
 
-- **`--purge` may remove the `ubuntu-desktop` metapackage.** The desktop keeps working, but future release upgrades may behave differently. That is why removing packages is optional rather than the default.
+- **GNOME stops remembering recent files and app usage** (`remember-recent-files`, `remember-app-usage`). Turn them back on in Settings → Privacy if you rely on them.
 - **Disabling connectivity-check breaks captive portal detection** (hotels, airports, trains). If you use such networks often, add `--keep-conncheck`.
-- **`--hosts` blocks `contracts.canonical.com`.** Do not use that flag if you have an active Ubuntu Pro / ESM subscription — it will stop working.
-- **Apport disabled = no local crash dumps.** If you plan to file bugs against Ubuntu, revert the changes first.
+- **Apport disabled = no crash reports for Ubuntu bugs.** Core dumps themselves still go to systemd-coredump / the kernel default. If you plan to file bugs against Ubuntu, revert the changes first.
 
 ---
 
@@ -142,21 +130,27 @@ Without that flag the packages stay installed, just neutralised.
 The script saves everything under `/var/backups/ubuntu-privacy-<date-time>/`:
 
 ```
-files/            1:1 copies of the modified files (with full paths)
-manifest.files    list of modified files
-manifest.created  list of files created by the script
-manifest.units    list of disabled systemd units
-manifest.pkgs     list of removed packages
-restore.sh        the restore script
+files/              1:1 copies of the modified / removed files (with full paths)
+manifest.files      list of modified / removed files
+manifest.created    list of files created by the script
+manifest.diverted   package config files replaced via dpkg-divert
+manifest.units      disabled systemd units + their previous state
+manifest.pkgs       removed packages
+manifest.gsettings  per-user GNOME settings + their previous values
+manifest.pro        present if `pro config apt_news` was changed
+restore.sh          the restore script
 ```
 
-Full rollback:
+Full rollback (the exact path is printed at the end of the run):
 
 ```bash
-sudo /var/backups/ubuntu-privacy-*/restore.sh
+ls -d /var/backups/ubuntu-privacy-*                       # find the backup directory
+sudo /var/backups/ubuntu-privacy-20261106-120000/restore.sh
 ```
 
-`restore.sh` puts the original files back, deletes the ones the script created, unmasks and re-enables the units, reinstalls the removed packages and cleans up the `/etc/hosts` entries. Reboot afterwards.
+`restore.sh` puts the original files back, deletes the ones the script created, undoes the diversions, unmasks the units (re-enabling only those that were enabled before), reinstalls the removed packages, resets the per-user GNOME settings and `pro`'s `apt_news`. It keeps going if one step fails and lists the failures at the end. Reboot afterwards.
+
+What cannot be reverted: the deleted crash reports in `/var/crash` and the `~/.cache/ubuntu-report` caches. GNOME settings of users who are not logged in during the restore are reset with `dbus-run-session`.
 
 Run log: `/var/log/ubuntu-privacy.log`.
 
@@ -165,8 +159,11 @@ Run log: `/var/log/ubuntu-privacy.log`.
 ## Verifying after a run
 
 ```bash
-# the units should report "masked"
+# the units should report "masked" (or "not-found" if their package was removed)
 systemctl is-enabled whoopsie apport kerneloops motd-news.timer apt-news 2>&1
+
+# the telemetry packages should be gone (any that are listed were kept on purpose - see the run log)
+dpkg -l ubuntu-report popularity-contest apport apport-gtk whoopsie kerneloops 2>/dev/null | grep '^ii'
 
 # GNOME settings (as a regular user, not root)
 gsettings get org.gnome.desktop.privacy report-technical-problems
@@ -184,7 +181,7 @@ sudo ss -tunp | grep -Ei 'ubuntu|canonical'
 
 ## Notes
 
-- The script is **idempotent** — you can run it repeatedly. Each run creates a new backup directory, so for a full rollback use the **oldest** one.
+- The script is **idempotent** — you can run it repeatedly. Each run creates a new backup directory (and warns if one already exists). For a full rollback run the `restore.sh` scripts **newest first**, or only the **oldest** one.
 - Running it again after a major system upgrade makes sense — Ubuntu can bring some units back when packages are updated (masking prevents that, but new units may appear).
 - The script does **not** touch security updates, `unattended-upgrades`, or anything responsible for patching the system. That is deliberate.
 
