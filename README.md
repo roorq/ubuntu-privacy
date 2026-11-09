@@ -88,16 +88,6 @@ Files that belong to a package (`/etc/default/apport`, `/etc/default/motd-news`,
 | APT hook | `/etc/apt/apt.conf.d/20apt-esm-hook.conf` blanked out (this is what injects ESM ads into every `apt upgrade`) |
 | Ubuntu Pro | `pro config set apt_news=false`, if `pro` is installed |
 
-### GNOME
-
-The settings go into the system dconf database (`/etc/dconf/db/local.d/00-ubuntu-privacy`, which covers future users) **and** are applied through `gsettings` to every currently logged-in user:
-
-- `org.gnome.desktop.privacy report-technical-problems=false`
-- `org.gnome.desktop.privacy send-software-usage-stats=false`
-- `org.gnome.desktop.privacy remember-recent-files=false`
-- `org.gnome.desktop.privacy remember-app-usage=false`
-- `org.gnome.system.location enabled=false`
-
 ### Network
 
 | Item | Change |
@@ -115,7 +105,6 @@ Before removing anything the script simulates the removal of each package (`apt-
 
 ## Side effects — read before running
 
-- **GNOME stops remembering recent files and app usage** (`remember-recent-files`, `remember-app-usage`). Turn them back on in Settings → Privacy if you rely on them.
 - **Disabling connectivity-check breaks captive portal detection** (hotels, airports, trains). If you use such networks often, add `--keep-conncheck`.
 - **Apport disabled = no crash reports for Ubuntu bugs.** Core dumps themselves still go to systemd-coredump / the kernel default. If you plan to file bugs against Ubuntu, revert the changes first.
 
@@ -132,7 +121,6 @@ manifest.created    list of files created by the script
 manifest.diverted   package config files replaced via dpkg-divert
 manifest.units      disabled systemd units + their previous state
 manifest.pkgs       removed packages
-manifest.gsettings  per-user GNOME settings + their previous values
 manifest.pro        present if `pro config apt_news` was changed
 restore.sh          the restore script
 ```
@@ -144,9 +132,9 @@ ls -d /var/backups/ubuntu-privacy-*                       # find the backup dire
 sudo /var/backups/ubuntu-privacy-20261106-120000/restore.sh
 ```
 
-`restore.sh` puts the original files back, deletes the ones the script created, undoes the diversions, unmasks the units (re-enabling only those that were enabled before), reinstalls the removed packages, resets the per-user GNOME settings and `pro`'s `apt_news`. It keeps going if one step fails and lists the failures at the end. Reboot afterwards.
+`restore.sh` puts the original files back, deletes the ones the script created, undoes the diversions, unmasks the units (re-enabling only those that were enabled before), reinstalls the removed packages and resets `pro`'s `apt_news`. It keeps going if one step fails and lists the failures at the end. Reboot afterwards.
 
-What cannot be reverted: the deleted crash reports in `/var/crash` and the `~/.cache/ubuntu-report` caches. GNOME settings of users who are not logged in during the restore are reset with `dbus-run-session`.
+What cannot be reverted: the deleted crash reports in `/var/crash` and the `~/.cache/ubuntu-report` caches.
 
 Run log: `/var/log/ubuntu-privacy.log`.
 
@@ -160,11 +148,6 @@ systemctl is-enabled whoopsie apport kerneloops motd-news.timer apt-news 2>&1
 
 # the telemetry packages should be gone (any that are listed were kept on purpose - see the run log)
 dpkg -l ubuntu-report popularity-contest apport apport-gtk whoopsie kerneloops 2>/dev/null | grep '^ii'
-
-# GNOME settings (as a regular user, not root)
-gsettings get org.gnome.desktop.privacy report-technical-problems
-gsettings get org.gnome.desktop.privacy send-software-usage-stats
-gsettings get org.gnome.system.location enabled
 
 # apport
 grep enabled /etc/default/apport

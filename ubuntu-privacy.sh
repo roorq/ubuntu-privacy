@@ -73,8 +73,6 @@ What it does by default:
   * disables and masks: whoopsie, apport, kerneloops, motd-news, apt-news, popularity-contest
     (+ the Ubuntu Pro units ua-timer/esm-cache - only when the machine is NOT attached to Pro)
   * disables ubuntu-report and popularity-contest
-  * disables error reporting and usage statistics in GNOME (dconf + per-user gsettings)
-  * GNOME: stops recording recent files and app usage, disables geolocation
   * neutralises the Ubuntu Pro/ESM ads in APT and in the MOTD
   * clears the reports collected in /var/crash and ~/.cache/ubuntu-report
   * removes the telemetry packages: ${PURGE_CANDIDATES[*]}
@@ -177,41 +175,6 @@ disable_unit() {
 
 pkg_installed() { dpkg-query -W -f='${db:Status-Status}' -- "$1" 2>/dev/null | grep -q '^installed$'; }
 
-# logged-in desktop users: prints "<user> <uid> <bus path>"
-desktop_users() {
-    local d uid u
-    for d in /run/user/*; do
-        [ -S "$d/bus" ] || continue
-        uid="$(basename "$d")"
-        [ "$uid" -ge 1000 ] 2>/dev/null || continue
-        u="$(id -nu "$uid" 2>/dev/null)" || continue
-        printf '%s %s %s\n' "$u" "$uid" "$d/bus"
-    done
-}
-
-as_user() {   # as_user <user> <uid> <bus> <cmd...>
-    local u="$1" uid="$2" bus="$3"; shift 3
-    runuser -u "$u" -- env DBUS_SESSION_BUS_ADDRESS="unix:path=${bus}" \
-        XDG_RUNTIME_DIR="/run/user/${uid}" "$@" </dev/null
-}
-
-# gsettings for every logged-in user; the previous value is recorded for restore.sh
-gset_all_users() {
-    local schema="$1" key="$2" val="$3" u uid bus old
-    while read -r u uid bus; do
-        if [ "$DRY_RUN" -eq 1 ]; then
-            dry "[$u] gsettings set $schema $key $val"
-            continue
-        fi
-        old="$(as_user "$u" "$uid" "$bus" gsettings get "$schema" "$key" 2>/dev/null)" || continue
-        [ -n "$old" ] || continue
-        [ "$old" = "$val" ] && continue
-        if as_user "$u" "$uid" "$bus" gsettings set "$schema" "$key" "$val" >>"$LOG_FILE" 2>&1; then
-            manifest gsettings "$u"$'\t'"$schema"$'\t'"$key"$'\t'"$old"
-        fi
-    done < <(desktop_users)
-}
-
 # ================================================================= setup
 parse_args() {
     while [ $# -gt 0 ]; do
@@ -296,7 +259,7 @@ confirm() {
 
 # ================================================================= 1. units
 step_units() {
-    hdr "1/8  Telemetry and reporting units"
+    hdr "1/7  Telemetry and reporting units"
     local u
     for u in \
         whoopsie.service \
@@ -324,7 +287,7 @@ step_units() {
 
 # ================================================================= 2. apport
 step_apport() {
-    hdr "2/8  Apport (collecting and uploading crash dumps)"
+    hdr "2/7  Apport (collecting and uploading crash dumps)"
 
     if [ -e /etc/default/apport ]; then
         write_file /etc/default/apport <<'EOF'
@@ -372,7 +335,7 @@ EOF
 
 # ================================================================= 3. whoopsie
 step_whoopsie() {
-    hdr "3/8  Whoopsie (uploads reports to errors.ubuntu.com)"
+    hdr "3/7  Whoopsie (uploads reports to errors.ubuntu.com)"
     write_file /etc/whoopsie <<'EOF'
 # set by ubuntu-privacy.sh
 [General]
@@ -383,7 +346,7 @@ EOF
 
 # ================================================================= 4. popcon + ubuntu-report
 step_popcon() {
-    hdr "4/8  popularity-contest and ubuntu-report"
+    hdr "4/7  popularity-contest and ubuntu-report"
 
     if [ -f /etc/popularity-contest.conf ]; then
         backup_file /etc/popularity-contest.conf
@@ -413,7 +376,7 @@ step_popcon() {
 
 # ================================================================= 5. Pro/ESM ads + MOTD
 step_motd() {
-    hdr "5/8  Ubuntu Pro / ESM / MOTD-news"
+    hdr "5/7  Ubuntu Pro / ESM / MOTD-news"
 
     write_file /etc/default/motd-news <<'EOF'
 # set by ubuntu-privacy.sh
@@ -458,51 +421,9 @@ EOF
     fi
 }
 
-# ================================================================= 6. GNOME / dconf
-step_gnome() {
-    hdr "6/8  GNOME: problem reporting, statistics, geolocation"
-
-    if [ -d /etc/dconf ] || command -v dconf >/dev/null 2>&1; then
-        if [ ! -f /etc/dconf/profile/user ]; then
-            write_file /etc/dconf/profile/user <<'EOF'
-user-db:user
-system-db:local
-EOF
-            ok "dconf profile /etc/dconf/profile/user created"
-        elif ! grep -q '^system-db:local' /etc/dconf/profile/user; then
-            backup_file /etc/dconf/profile/user
-            [ "$DRY_RUN" -eq 1 ] || printf 'system-db:local\n' >>/etc/dconf/profile/user
-            ok "system-db:local added to the dconf profile"
-        fi
-
-        write_file /etc/dconf/db/local.d/00-ubuntu-privacy <<'EOF'
-# set by ubuntu-privacy.sh
-[org/gnome/desktop/privacy]
-report-technical-problems=false
-send-software-usage-stats=false
-remember-recent-files=false
-remember-app-usage=false
-
-[org/gnome/system/location]
-enabled=false
-EOF
-        run dconf update || true
-        ok "system-wide dconf defaults written"
-    else
-        skip "dconf unavailable (system without GNOME)"
-    fi
-
-    gset_all_users org.gnome.desktop.privacy report-technical-problems false
-    gset_all_users org.gnome.desktop.privacy send-software-usage-stats false
-    gset_all_users org.gnome.desktop.privacy remember-recent-files false
-    gset_all_users org.gnome.desktop.privacy remember-app-usage false
-    gset_all_users org.gnome.system.location enabled false
-    ok "settings applied for the logged-in users"
-}
-
-# ================================================================= 7. network
+# ================================================================= 6. network
 step_network() {
-    hdr "7/8  Background network requests"
+    hdr "6/7  Background network requests"
 
     if [ "$DO_CONNCHECK" -eq 1 ]; then
         if [ -d /etc/NetworkManager ]; then
@@ -526,9 +447,9 @@ EOF
     fi
 }
 
-# ================================================================= 8. packages
+# ================================================================= 7. packages
 step_packages() {
-    hdr "8/8  Telemetry packages"
+    hdr "7/7  Telemetry packages"
 
     if [ "$DO_PURGE" -ne 1 ]; then
         info "the packages stay installed but are disabled (--keep-packages)"
@@ -657,30 +578,11 @@ if [ -f "$DIR/manifest.pkgs" ]; then
     fi
 fi
 
-# 6. per-user GNOME settings
-if [ -f "$DIR/manifest.gsettings" ]; then
-    while IFS=$'\t' read -r user schema key val; do
-        [ -n "$user" ] || continue
-        uid="$(id -u "$user" 2>/dev/null)" || continue
-        bus="/run/user/$uid/bus"
-        if [ -S "$bus" ]; then
-            runuser -u "$user" -- env DBUS_SESSION_BUS_ADDRESS="unix:path=$bus" \
-                XDG_RUNTIME_DIR="/run/user/$uid" gsettings set "$schema" "$key" "$val" </dev/null
-        elif command -v dbus-run-session >/dev/null; then
-            runuser -u "$user" -- dbus-run-session -- gsettings set "$schema" "$key" "$val" </dev/null
-        else
-            false
-        fi && echo "[$user] $schema $key = $val" \
-           || fail "[$user] could not reset $schema $key - run as that user: gsettings set $schema $key $val"
-    done <"$DIR/manifest.gsettings"
-fi
-
-# 7. Ubuntu Pro config
+# 6. Ubuntu Pro config
 if [ -f "$DIR/manifest.pro" ] && command -v pro >/dev/null; then
     pro config set apt_news=true >/dev/null && echo "pro: apt_news=true" || fail "pro config set apt_news=true failed"
 fi
 
-command -v dconf >/dev/null && dconf update || true
 sysctl --system >/dev/null 2>&1 || true
 systemctl daemon-reload || true
 systemctl reload NetworkManager >/dev/null 2>&1 || true
@@ -722,7 +624,6 @@ main() {
     step_whoopsie
     step_popcon
     step_motd
-    step_gnome
     step_network
     step_packages
     write_restore
