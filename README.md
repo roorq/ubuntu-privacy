@@ -1,7 +1,7 @@
 # ubuntu-privacy.sh
 
 A script that disables telemetry, crash reporting and "phone home" behaviour in Ubuntu.
-Tested against **Ubuntu 24.04 / 25.10 / 26.04 LTS** (it also works on Debian derivatives — steps that do not apply are simply skipped).
+Tested against **Ubuntu 24.04 LTS / 25.10 / 26.04 LTS / 26.10** (it also works on Debian derivatives — steps that do not apply are simply skipped).
 
 Every change is copied into a backup directory, and the script generates a `restore.sh` that reverts the changes (see [Reverting the changes](#reverting-the-changes) for the few things that cannot be undone).
 
@@ -41,7 +41,6 @@ sudo bash ubuntu-privacy.sh
 | `-y`, `--yes` | Do not ask for confirmation (required with `curl \| bash`) |
 | `-n`, `--dry-run` | Print the planned operations, change nothing |
 | `--keep-packages` | Do not remove the telemetry packages, only disable them |
-| `--no-firefox` | Skip writing the Firefox privacy policies |
 | `--keep-conncheck` | Leave NetworkManager's connectivity checking in place |
 | `-h`, `--help` | Help |
 
@@ -104,9 +103,6 @@ The settings go into the system dconf database (`/etc/dconf/db/local.d/00-ubuntu
 | Item | Change |
 |---|---|
 | NetworkManager | `/etc/NetworkManager/conf.d/99-ubuntu-privacy.conf` — no more periodic polling of `connectivity-check.ubuntu.com` |
-| Firefox | `/etc/firefox/policies/policies.json` — `DisableTelemetry`, `DisableFirefoxStudies`, `DisablePocket`, `DisableDefaultBrowserAgent`, `UserMessaging` turned off, plus the new-tab activity-stream telemetry prefs (locked) |
-
-The Firefox policies are written **only if the file does not already exist** — your own configuration is never overwritten.
 
 ### Telemetry packages (removed)
 

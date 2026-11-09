@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# ubuntu-privacy.sh - disable telemetry and "phone home" behaviour in Ubuntu (24.04 / 25.10 / 26.04)
+# ubuntu-privacy.sh - disable telemetry and "phone home" behaviour in Ubuntu (24.04 / 25.10 / 26.04 / 26.10)
 #
 #   https://github.com/roorq/ubuntu-privacy
 #
@@ -23,7 +23,6 @@ DIVERT_SUFFIX=".dpkg-divert"   # apt silently ignores apt.conf.d files matching 
 DRY_RUN=0
 ASSUME_YES=0
 DO_PURGE=1
-DO_FIREFOX=1
 DO_CONNCHECK=1
 PRO_ATTACHED=0
 
@@ -66,7 +65,6 @@ Options:
   -y, --yes           do not ask for confirmation (required with curl|bash)
   -n, --dry-run       show what would be done, change nothing
       --keep-packages do not remove the telemetry packages, only disable them
-      --no-firefox    do not write the Firefox policies
       --keep-conncheck  leave NetworkManager's connectivity checking in place
                         (connectivity-check.ubuntu.com - needed for captive portals)
   -h, --help          this help
@@ -79,7 +77,6 @@ What it does by default:
   * GNOME: stops recording recent files and app usage, disables geolocation
   * neutralises the Ubuntu Pro/ESM ads in APT and in the MOTD
   * clears the reports collected in /var/crash and ~/.cache/ubuntu-report
-  * writes the Firefox privacy policies (unless you already have your own)
   * removes the telemetry packages: ${PURGE_CANDIDATES[*]}
     (a package whose removal would take anything else with it, e.g. ubuntu-desktop, is kept)
 Package-owned config files are replaced via dpkg-divert, so package updates
@@ -223,7 +220,6 @@ parse_args() {
             -n|--dry-run)      DRY_RUN=1 ;;
             --keep-packages)   DO_PURGE=0 ;;
             --purge)           DO_PURGE=1 ;;   # default since 1.1.0, kept for old command lines
-            --no-firefox)      DO_FIREFOX=0 ;;
             --keep-conncheck)  DO_CONNCHECK=0 ;;
             -h|--help)         usage; exit 0 ;;
             *) DRY_RUN=1; err "Unknown option: $1"; usage; exit 2 ;;
@@ -294,7 +290,7 @@ confirm() {
         touch "$LOG_FILE" 2>/dev/null || true
         chmod 600 "$LOG_FILE" 2>/dev/null || true
         log ""
-        log "start $(date -Is) v${SCRIPT_VERSION} - ${OS_NAME} ${OS_VER} - options: purge=$DO_PURGE firefox=$DO_FIREFOX conncheck=$DO_CONNCHECK pro=$PRO_ATTACHED"
+        log "start $(date -Is) v${SCRIPT_VERSION} - ${OS_NAME} ${OS_VER} - options: purge=$DO_PURGE conncheck=$DO_CONNCHECK pro=$PRO_ATTACHED"
     fi
 }
 
@@ -527,40 +523,6 @@ EOF
         fi
     else
         skip "connectivity checking left in place (--keep-conncheck)"
-    fi
-
-    if [ "$DO_FIREFOX" -eq 1 ]; then
-        if [ -e /etc/firefox/policies/policies.json ]; then
-            skip "/etc/firefox/policies/policies.json already exists - not overwriting"
-        else
-            # DisableTelemetry / DisableFirefoxStudies already lock the datareporting.*,
-            # toolkit.telemetry.* and app.shield.* prefs themselves.
-            write_file /etc/firefox/policies/policies.json <<'EOF'
-{
-  "policies": {
-    "DisableTelemetry": true,
-    "DisableFirefoxStudies": true,
-    "DisablePocket": true,
-    "DisableDefaultBrowserAgent": true,
-    "DisableFeedbackCommands": true,
-    "UserMessaging": {
-      "WhatsNew": false,
-      "ExtensionRecommendations": false,
-      "FeatureRecommendations": false,
-      "UrlbarInterventions": false,
-      "SkipOnboarding": true
-    },
-    "Preferences": {
-      "browser.newtabpage.activity-stream.feeds.telemetry": { "Value": false, "Status": "locked" },
-      "browser.newtabpage.activity-stream.telemetry":       { "Value": false, "Status": "locked" }
-    }
-  }
-}
-EOF
-            ok "Firefox privacy policies written"
-        fi
-    else
-        skip "Firefox policies (--no-firefox)"
     fi
 }
 
